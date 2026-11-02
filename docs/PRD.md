@@ -50,7 +50,8 @@
 - 핵심 대상: 작성 건
 - 상태값: 수정, 반려, 성공, 취소 (`03-rules-states-llm.md` 3-2)
 - 업로드·인식 ~ 검토 단계는 상태가 아니라 '수정' 안의 진행 단계: `03-rules-states-llm.md` 3-2 진행 단계 표
-- 자세한 것: [docs/domain/03-rules-states-llm.md](domain/03-rules-states-llm.md)
+- 데이터 구조 (모델·필드·관계, 진행 단계 값 `step`과 `backlog.md` 단계 이름 대응표): `DATA-MODEL.md` (초안, 팀 확정 전)
+- 자세한 것: [docs/domain/03-rules-states-llm.md](domain/03-rules-states-llm.md), [docs/DATA-MODEL.md](DATA-MODEL.md)
 
 ## 6. LLM의 역할
 > 가져올 곳: `03-rules-states-llm.md`. 아래 두 가지를 그대로 가리킵니다.
