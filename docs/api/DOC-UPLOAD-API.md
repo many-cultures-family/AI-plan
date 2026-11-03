@@ -12,8 +12,8 @@
 | --- | --- |
 | 요청 (경로·방식) | `POST /api/drafts` `[제안]` |
 | 입력 | `multipart/form-data`의 `file` 한 개 (PDF 또는 이미지) |
-| 출력 (성공) | `201`. 새로 생긴 작성 건 `draft`(`id`, `status`, `step`)와 올린 문서 `document`(`mime_type`, `page_count`). 서버는 파일을 저장하고 `draft`·`document` 행을 만든다. **OCR·마스킹은 하지 않는다** (#2를 오늘 만들지 않음) |
-| 실패 응답 | 파일이 없거나 PDF·이미지가 아니면 작성 건을 만들지 않는다 (#1 "PDF·이미지 파일을 올리면"의 반대). `400 FILE_REQUIRED` / `415 FILE_TYPE_NOT_ALLOWED` `[제안]`. 허용하는 형식은 `DATA-MODEL.md` `document.mime_type`의 `application/pdf`·`image/png`·`image/jpeg`. 크기·페이지 상한(10MB·10페이지)은 backlog US-01 미확정이라 오늘 검사하지 않는다 |
+| 출력 (성공) | `201`. 새로 생긴 작성 건 `draft`(`id`, `status`, `step`)와 올린 문서 `document`(`mime_type`, `page_count`). `page_count`는 PDF면 페이지 수, 이미지(PNG·JPEG)면 1 (`DATA-MODEL.md` `document.page_count` "이미지는 1"). 서버는 파일을 저장하고 `draft`·`document` 행을 만든다. **OCR·마스킹은 하지 않는다** (#2를 오늘 만들지 않음) |
+| 실패 응답 | 파일이 없거나 PDF·이미지가 아니면 작성 건을 만들지 않는다 (#1 "PDF·이미지 파일을 올리면"의 반대). `400 FILE_REQUIRED` `[제안]` / `415 FILE_TYPE_NOT_ALLOWED`. 파일 앞부분(서명)만 PDF이고 열어서 읽을 수 없는 파일도 `415 FILE_TYPE_NOT_ALLOWED`로 거절한다. 허용하는 형식은 `DATA-MODEL.md` `document.mime_type`의 `application/pdf`·`image/png`·`image/jpeg`. 크기·페이지 상한(10MB·10페이지)은 backlog US-01 미확정이라 오늘 검사하지 않는다 |
 | 권한 (누가 못 하나) | 오늘은 없음 (#4 아니오) |
 | 바뀌는 상태 | (신규) → `status`=`수정`, `step`=`upload`. backlog의 '업로드됨'은 `DATA-MODEL.md` `step` 대응표에 따라 `수정` 상태의 `upload` 단계로 쓴다 |
 | 관련 인수 조건 | `first-feature.md` 2절 #1 |
@@ -47,5 +47,5 @@ file = 방과후학교_신청서_샘플.pdf
 | --- | --- |
 | 로그인 없이 만든 작성 건의 `draft.user_id`(`DATA-MODEL.md`에서 필수)를 어떻게 채울지. 예: 시드 2번 사용자(`test-sub-0001`)로 둘지 | 개발자1·2 / 구현 전 |
 | 올린 파일을 서버 어느 폴더에 저장할지. 실제 사용자 문서는 저장소에 올리지 않으므로 그 폴더를 `.gitignore`에 넣어야 함 (`CLAUDE.md`, 공유 파일이라 테크리더) | 개발자1·테크리더 / 구현 전 |
-| 경로 이름, HTTP 상태 코드, 오류 코드 이름 (`[제안]`) | 개발자1·2 합의 → PM 반영 / 구현 전 |
+| 경로 이름, `400 FILE_REQUIRED`, 오류 응답 형식 (`[제안]`). `415 FILE_TYPE_NOT_ALLOWED`는 그대로 쓰기로 정함 (2026-11-03) | 개발자1·2 합의 → PM 반영 / 구현 전 |
 | backlog 단계 이름('업로드됨' 등)을 `03` 3-2 상태에 맞출지 (`PRD.md` 8절). 이 문서는 `DATA-MODEL.md` 대응표(`수정` + `step`)를 따름 | 팀 / 확인 필요 |
