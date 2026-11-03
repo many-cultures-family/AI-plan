@@ -136,4 +136,6 @@ AI-service/
 
 | 계획 | 실제 | 이유 |
 | --- | --- | --- |
-| | | |
+| 루트 `.env.example` | `frontend/.env.example`, `backend/.env.example` | 화면과 서버가 각자 쓰는 환경변수 이름만 각 폴더에 둠 |
+| `backend/requirements.txt` (fastapi, uvicorn, pytest, TestClient용 패키지, ruff) | 위에 `python-multipart`, `pypdf` 추가. TestClient용 패키지는 `httpx2` | US-01 #1: 파일 업로드 받기, PDF 쪽수 확인 |
+| `python3 -m pytest` → `1 passed` | `backend/`에서 `pytest` → `11 passed` (US-01 #1 테스트 포함, Python 3.14.10 venv) | US-01 #1 테스트를 더함 |
