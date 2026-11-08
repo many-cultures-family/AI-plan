@@ -55,4 +55,4 @@
 
 | 화면 파일 | 쓰던 임시 응답 | 실제 주소로 바꿨나 |
 | --- | --- | --- |
-| | | |
+| `frontend/src/mocks/documents.js`(`uploadDocument`), `frontend/src/api/documents.js` 경유 | `POST /api/drafts` — API.md 항목1 예시(`draft.status`=`수정`/`step`=`upload`, `document.mime_type`/`page_count`), 실패 시 `FILE_REQUIRED`/`FILE_TYPE_NOT_ALLOWED` | 아니오 (`VITE_USE_MOCK=true`일 때만 사용, 서버 병합 후 `.env.local`에서 `false`로 전환하면 실제 `/api/drafts` 호출) |
