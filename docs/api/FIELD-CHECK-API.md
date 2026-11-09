@@ -7,7 +7,7 @@
 | 전제 상태 | 아래 모든 요청은 `draft.step`이 `field_check`일 때만 다룬다. (`step` 대응표: `DATA-MODEL.md` 93~101행) `field_check` 이전(`upload`)이면 아직 OCR·인식이 끝나지 않은 것이므로 `409 DRAFT_STEP_INVALID` `[제안]`. OCR·인식완료 전이 자체는 US-01 #2·#3(F-01) 범위라 이 문서에서 만들지 않는다 |
 | 사용 언어 | 모국어 설명(`form_field.description`)은 `user.language`로 만든다. 로그인이 없는 동안은 시드 사용자 값(`backend/app/db.py`의 `SEED_LANGUAGE`, 현재 `vi`)을 쓴다 |
 
-## 항목 2: 입력 항목 목록 조회 (기능 ID: F-02 / 스토리: US-02)
+## 항목 1: 입력 항목 목록 조회 (기능 ID: F-02 / 스토리: US-02)
 
 | 항목 | 내용 |
 | --- | --- |
@@ -21,7 +21,7 @@
 
 > 원본 파일(PDF·이미지)을 화면에 나란히 띄우는 API는 이 문서에서 다루지 않는다. `DOC-UPLOAD-API.md` "아직 없는 항목"에 "원본 파일 보기"가 이미 미정으로 적혀 있어, F-01 쪽에서 먼저 정해야 한다. 정해지면 이 화면은 그 주소를 그대로 쓴다.
 
-## 항목 3: 입력 항목 추론·재분석 (기능 ID: F-02 / 스토리: US-02, US-03)
+## 항목 2: 입력 항목 추론·재분석 (기능 ID: F-02 / 스토리: US-02, US-03)
 
 | 항목 | 내용 |
 | --- | --- |
@@ -29,14 +29,14 @@
 | 입력 | 최초 추론: 본문 없음(또는 빈 객체). 재분석(US-03): `{"flagged_field_ids": [12, 15]}` — '원본과 다름'으로 표시한 `form_field.id` 1개 이상 |
 | 동작 | L1(`03` 3-4)을 호출한다. 보내는 것: `document.masked_text`, 각 항목의 `bbox`·`label`(재분석이면 기존 항목 전체 + `flagged_field_ids`), `user.language`. **보내지 않는 것**: 원본 파일, 가리기 전 OCR 텍스트, 사전 정보, 사용자가 입력한 값 (`DATA-MODEL.md` "LLM에 보내지 않을 정보") |
 | 규칙 검증 | L1 결과를 저장하기 전에 모든 항목에 `format_code`(허용 목록 안)·`required`가 있는지 검사한다(R2). 재분석이면 기존 `form_field` 행을 새 결과로 바꾸고 `fields_confirmed_at`을 비운다(US-02·US-03, `DATA-MODEL.md` 43행) |
-| 출력 (성공) | `200`. 항목 2와 같은 `fields` 배열(검증 통과분). 재분석이면 `draft.reanalysis_count`를 1 올려 함께 돌려준다 |
+| 출력 (성공) | `200`. 항목 1과 같은 `fields` 배열(검증 통과분). 재분석이면 `draft.reanalysis_count`를 1 올려 함께 돌려준다 |
 | 재분석 실패 응답 | `flagged_field_ids`가 없거나 빈 배열이면 `400 NO_FIELDS_FLAGGED` (US-03 인수 조건 2번, L1을 부르지 않는다). `reanalysis_count`가 이미 3이면 `429 REANALYSIS_LIMIT_EXCEEDED` `[제안]` (`DATA-MODEL.md` 44행 "3회까지"도 `[제안]`이라 팀 확인 필요) |
 | L1 호출 실패 응답 | `502 LLM_CALL_FAILED` `[제안]` — Gemini 호출 자체가 실패(타임아웃·오류)했을 때. 이 경우 작성 건 상태·단계는 바꾸지 않고 사용자가 다시 시도할 수 있게 한다 |
 | 권한 | 오늘은 없음 |
 | 관련 인수 조건 | US-02 인수 조건 2·3번, US-03 전체 |
 | 화면이 쓰는 곳 | `DESIGN.md` 입력 항목 확인 (재분석 요청 버튼) |
 
-## 항목 4: 입력 항목 확정 (기능 ID: F-02 / 스토리: US-02)
+## 항목 3: 입력 항목 확정 (기능 ID: F-02 / 스토리: US-02)
 
 | 항목 | 내용 |
 | --- | --- |
