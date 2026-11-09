@@ -41,7 +41,7 @@
 | 3-1 | [docs/DATA-MODEL.md](docs/DATA-MODEL.md) | 데이터 구조·상태값·시드 데이터 | ☐ |
 | 3-1 | [docs/DESIGN.md](docs/DESIGN.md) | UI 디자인 방향·토큰·화면 목록 | ☐ |
 | 3-1 | [docs/CODE-STYLE.md](docs/CODE-STYLE.md) | 팀 코딩 스타일 | ☐ |
-| 3-1 | [.mcp.json](.mcp.json) | 팀이 고른 MCP 서버 설정 (키 없음). **MCP를 고른 팀만** | ☐ |
+| 3-1 | `.mcp.json` (만들지 않음) | 팀이 고른 MCP 서버 설정 (키 없음). **MCP를 고른 팀만**. 우리 팀은 연결하지 않기로 해 파일을 두지 않는다 (`mcp-use.md` 1절) | ☐ |
 | 3-1 | [docs/decisions/mcp-use.md](docs/decisions/mcp-use.md) | MCP를 고른 이유(또는 고르지 않은 이유), 설치, 연결 확인, 사용 기록 | ☐ |
 | 3-1 | [docs/decisions/first-feature.md](docs/decisions/first-feature.md) | 우리가 고른 첫 기능과 범위, 실행 확인 | ☐ |
 | 3-1 | [docs/api/DOC-UPLOAD-API.md](docs/api/DOC-UPLOAD-API.md) | 화면·서버가 주고받는 약속 (기능 1항목) | ☐ |
