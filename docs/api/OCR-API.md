@@ -71,8 +71,8 @@ POST /api/drafts/1/document:recognize
 | 4 | 입력 항목 추론 | `POST /api/drafts/{id}/fields:infer` | `FIELD-CHECK-API.md` | 있음 | 미실행 |
 | 5 | 입력 항목 확정 | `POST /api/drafts/{id}/fields:confirm` | `FIELD-CHECK-API.md` | 있음 | 미실행 |
 | 6 | 사전 정보 입력 (브라우저에만 저장) | 없음 (서버 API 없음) | `no-server-storage-user-input.md` | 화면 없음 | 미실행 |
-| 7 | `prior_info` → `writing` 전이 | 없음 | `VIRTUAL-FORM-API.md` "아직 없는 항목" ① | 없음 | 미실행 |
-| 8 | 가상 작성 (입력값·불일치 계산은 브라우저) | 칸 목록 `GET /api/drafts/{id}/fields` | `VIRTUAL-FORM-API.md` (결정에 맞게 담당자가 고칠 것) | 있음 (칸 목록만) | 미실행 |
+| 7 | `prior_info` → `writing` 전이 | `POST /api/drafts/{id}/writing:start` | `VIRTUAL-FORM-API.md` 항목 2 | 없음 | 미실행 |
+| 8 | 가상 작성 (입력값·형식 검사·불일치 계산은 브라우저) | `GET /api/drafts/{id}/form` | `VIRTUAL-FORM-API.md` 항목 1 | 없음 | 미실행 |
 | 9 | 단어 설명·쉬운 풀이 | `GET …/document/text`, `GET /api/glossary`, `POST /api/drafts/{id}/explanations` | `WORD-EXPLAIN-API.md` | 없음 | 미실행 |
 | 10 | `writing` → `review` 전이 | `POST /api/drafts/{id}/review:start` | `REVIEW-PRIVACY-API.md` 항목 1 | 없음 | 미실행 |
 | 11 | 개인정보 감지·결정·가리기 (브라우저) | `GET /api/privacy-rules` | `REVIEW-PRIVACY-API.md` 항목 4, `l3-masking.md` | 없음 | 미실행 |

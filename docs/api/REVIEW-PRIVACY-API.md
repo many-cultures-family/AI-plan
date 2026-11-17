@@ -39,7 +39,7 @@
 | 입력 | 없음 |
 | 전제 조건 | `step`=`writing`이고 `draft.fields_confirmed_at`이 채워져 있어야 한다(입력 항목을 확정한 작성 건만 검토로 간다, `FIELD-CHECK-API.md` 항목 3). 비어 있으면 `409 FIELDS_NOT_CONFIRMED` |
 | 동작 | `draft.step`을 `writing` → `review`로 바꾸고 `draft.reviewed_at`을 비운다(아래 항목 3·5). 필수 입력·불일치 확인은 여기서 막지 않고 항목 5(최종 확인)에서 본다 (R9) |
-| 검토 중 답변을 고치면 | 답변이 서버에 없으므로 서버 단계는 `review`로 둔다. 브라우저가 그 답변의 감지 결과·제안을 지우고 ①부터 다시 한 뒤 항목 3을 다시 부른다 (`DATA-MODEL.md` 64행 "서술형 값이 바뀌면 다시 검토"). **`VIRTUAL-FORM-API.md` 항목 2의 "`review` 단계에서 값이 바뀌면 `step`을 `writing`으로 되돌린다"와 반대다.** 그 규칙은 입력값 저장 API(`PUT .../answers/{field_id}`)가 서버에 값을 받는다는 전제인데, 병합된 결정 `no-server-storage-user-input.md`가 그 API를 없애고 "`VIRTUAL-FORM-API.md` — 입력값 저장 API와 서버 불일치 계산을 브라우저 계산으로 바꾼다 (고칠 사람: 담당자)"로 정했다. 그래서 **결정 기록과 이 문서가 우선**하고, `VIRTUAL-FORM-API.md`는 담당자가 고치기 전까지 그 부분이 낡은 내용이다. 서버가 값 변경을 알 수 없으므로 `writing`으로 되돌리는 동작은 만들 수도 없다 |
+| 검토 중 답변을 고치면 | 답변이 서버에 없으므로 서버 단계는 `review`로 둔다. 화면은 `GET .../form`(`VIRTUAL-FORM-API.md` 항목 1)으로 `review` 단계에서도 칸을 다시 열 수 있고, 고친 답변은 브라우저가 감지 결과·제안을 지우고 ①부터 다시 한 뒤 항목 3을 다시 부른다 (`DATA-MODEL.md` 64행 "서술형 값이 바뀌면 다시 검토") |
 | 출력 (성공) | `200`. `{"draft": {"id", "status": "수정", "step": "review"}}` (`fields:confirm` 응답 모양에 맞춤) |
 | 실패 응답 | `409 FIELDS_NOT_CONFIRMED`, 그 외 공통 규칙의 `401`/`403`/`404`/`409` |
 | 권한 | 로그인한 본인만 |
@@ -101,7 +101,7 @@
 | 전제 단계 | `step`=`review` |
 | 입력 | `{"remaining_required": 0, "unacknowledged_mismatches": 0, "undecided_suggestions": 0, "undecided_privacy": 0}` — 브라우저가 R9 조건 4개를 센 **숫자만**. 값은 보내지 않는다 |
 | 이렇게 정한 이유 | 서버에 입력값이 없어 서버가 직접 셀 수 없다 (`data-flow.md` 5절 #2). 후보 셋 중 ㉠(요약 숫자만 보냄)을 골랐다. ㉡(판정 때만 값을 보냄)은 "서버로 원문을 보내지 않는다"는 결정 취지와 어긋나고, ㉢(브라우저에서 판정·상태 변경)은 CLAUDE.md "상태 변경은 서버 규칙 검증 뒤에만"과 어긋난다. ㉠은 상태를 서버가 바꾸고, 원문이 서버로 가지 않는다 |
-| 규칙 엔진 | 필수 누락·형식·불일치 판정은 브라우저의 규칙 엔진이 한다 — 서버의 `input_format.pattern`을 그대로 써야 서버 규칙과 어긋나지 않는다. 지금 `GET .../fields`는 `format_label`·`format_example`만 주고 `pattern`은 주지 않으므로, `FIELD-CHECK-API.md` "아직 없는 항목"에 이미 후보로 적힌 `GET /api/input-formats`(코드·이름·예시·`pattern`)를 둔다. LLM은 판정하지 않는다 (R3) |
+| 규칙 엔진 | 필수 누락·형식·불일치 판정은 브라우저의 규칙 엔진이 한다. 형식 규칙은 `VIRTUAL-FORM-API.md` 항목 1(`GET .../form`)이 칸마다 내려 주는 `pattern`(서버 `input_format`과 같은 값)을 그대로 쓴다. LLM은 판정하지 않는다 (R3) |
 | 동작 | 서버는 먼저 **검토 절차가 실제로 있었는지** 본다: `draft.reviewed_at`이 비어 있으면(항목 3을 한 번도 통과하지 않음) 상태를 바꾸지 않고 `409 REVIEW_NOT_DONE`. 그다음 ① 숫자 4개가 모두 0인지 ② 서버에 있는 조건(`fields_confirmed_at`이 채워져 있음)을 본다. 모두 맞으면 `status`를 `성공`으로, 하나라도 아니면 `반려`로 바꾸고 `reject_reason`=`CONDITION_UNMET`을 남긴다 (R9 "조건이 남은 채 완성을 요청하면 반려", `DATA-MODEL.md` `reject_reason`). 이 요청 자체가 R9의 "사용자가 완성본을 최종 확인"이다 |
 | 출력 | `200`. `{"draft": {"id", "status": "성공", "step": "review"}}` 또는 `{"draft": {"id", "status": "반려", "step": "review", "reject_reason": "CONDITION_UNMET"}}` (`OCR-API.md`처럼 결과가 `반려`여도 요청은 처리됐으므로 `200`) |
 | 실패 응답 | `409 REVIEW_NOT_DONE`(검토를 거치지 않음). 숫자 4개가 다 없거나 0 이상의 정수가 아니면 `400 INVALID_COMPLETE_REQUEST`. 그 외 공통 규칙 |
@@ -182,9 +182,7 @@ POST /api/drafts/1:complete
 - 작업 브랜치는 `main`에서 딴다. 그래서 PR #26 브랜치를 그대로 `main`에 병합하지 않고, **`main`에서 딴 F-07 작업 브랜치에서 `review.py`를 이 문서대로 다시 만든다**. PR #26에서 가져올 것은 L3 프롬프트·응답 검사(`llm.py` `review_answers`, `_validate_suggestion_shape`)와 테스트 틀이다
 
 ## 아직 없는 항목
-- `GET /api/input-formats` — 브라우저 규칙 엔진이 쓸 형식 목록. `FIELD-CHECK-API.md` 담당 영역이라 그 문서에 추가한다
 - `DATA-MODEL.md` 반영 (PM): `draft.review_count`(정수)·`draft.reviewed_at`(날짜시간) 추가, `prior_info`·`field_answer`·`privacy_detection`·`review_suggestion`을 서버 모델에서 빼기 (결정 기록에 이미 적힘)
-- `VIRTUAL-FORM-API.md` 반영 (담당자 이효상, CLAUDE.md "표가 있는 공용 문서는 배정받은 사람만 고친다"라 이 PR에서 고치지 않음): 입력값 저장·불일치 계산을 브라우저로, "`review`에서 값이 바뀌면 `writing`으로" 규칙 삭제, "아직 없는 항목"의 단계 전이 ②·③을 이 문서 항목 1·5로 연결
 
 ## 팀 확인이 필요한 것
 > CLAUDE.md상 Claude가 정하지 않는 것(인수 조건·규칙 문구, MVP 범위, 다른 사람의 코드)이다. 추천안만 적는다.

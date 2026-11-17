@@ -12,7 +12,7 @@
 | 항목 | 내용 |
 | --- | --- |
 | 인증·권한 | `LOGIN-API.md` 명세를 따른다. 세션이 없으면 `401 LOGIN_REQUIRED`. 작성 건을 경로에 받는 API는 본인 것이 아니면 `403 FORBIDDEN_DRAFT`, 없으면 `404 DRAFT_NOT_FOUND` |
-| 전제 상태 (항목 2) | `draft.step`이 `writing` 또는 `review`이고 `draft.status`가 `수정`일 때 (`VIRTUAL-FORM-API.md`가 가상 작성 화면을 `writing`·`review`에서 여는 것에 맞춤). 다르면 `409 DRAFT_STEP_INVALID` / `409 DRAFT_NOT_EDITABLE`. 상태를 바꾸지 않는다 (`수정` 유지, `03` 3-4 L2) |
+| 전제 상태 (항목 2) | `draft.step`이 `writing` 또는 `review`이고 `draft.status`가 `수정`일 때 (`VIRTUAL-FORM-API.md` 항목 1 `GET .../form`이 `writing`·`review`에서 열리는 것에 맞춤). 다르면 `409 DRAFT_STEP_INVALID` / `409 DRAFT_NOT_EDITABLE`. 상태를 바꾸지 않는다 (`수정` 유지, `03` 3-4 L2) |
 | 기본 설명은 항상 사전에서 | 단어를 누르면 **서버 용어 사전(`glossary_term`)의 설명을 먼저** 보여 준다. LLM은 사용자가 '이해하지 못함'을 고를 때만 부른다 (R5) |
 | AI 풀이 표시 | L2가 만든 풀이는 응답에 `source: "ai"`를 넣고, 화면은 'AI 풀이'로 표시한다 (R5) |
 | 사용 언어 | 설명 언어는 **베트남어(`vi`) 하나**다. 단어·문장은 한국어 신청서에서 고르고, 설명은 베트남어로 준다 (`VIETNAMESE-SCOPE.md` "번역 방향"). 서버는 `user.language`를 읽는 구조를 그대로 두고(`FIELD-CHECK-API.md` 사용 언어 규칙), MVP에서 그 값은 `vi`다 |
@@ -42,7 +42,7 @@
 | --- | --- |
 | 요청 (경로·방식) | `POST /api/drafts/{draft_id}/explanations` (작성 건 소유·`masked_text` 확인을 위해 `drafts/{id}` 아래에 둠) |
 | 입력 | `{"selected_text": "보호자 동의"}` — 1~100자 (`input_format`의 `short_text` 상한 100자에 맞춤) |
-| `selected_text` 검사 (개인정보 차단) | **두 단계로 막는다.** ① 서버가 `selected_text`가 이 작성 건의 **이미 가린** 문서 글자 안에 그대로 들어 있는지 본다. 대상은 화면이 실제로 받아 보여 주는 글자와 같다: 문서 본문 줄(`document.masked_text`, 항목 3으로 내려 줌), 칸 이름·설명·선택지(`form_field`의 `label`·`description`·`options`, `GET .../fields`로 내려 줌), 서술형 안내 문구(`guide_text`, `GET .../review`로 내려 줌). 없으면 `400 TEXT_NOT_IN_DOCUMENT`. ② 들어 있어도 `detect_pii`(`prototypes/masking/masking.py`)로 다시 검사해 걸리면 L2를 부르지 않고 `422 PII_REMAINING` (`REVIEW-PRIVACY-API.md` 항목 3과 같은 코드) |
+| `selected_text` 검사 (개인정보 차단) | **두 단계로 막는다.** ① 서버가 `selected_text`가 이 작성 건의 **이미 가린** 문서 글자 안에 그대로 들어 있는지 본다. 대상은 화면이 실제로 받아 보여 주는 글자와 같다: 문서 본문 줄(`document.masked_text`, 항목 3으로 내려 줌), 칸 이름·설명·선택지(`form_field`의 `label`·`description`·`options`, `VIRTUAL-FORM-API.md` 항목 1 `GET .../form`으로 내려 줌), 서술형 안내 문구(`guide_text`, `GET .../review`로 내려 줌). 없으면 `400 TEXT_NOT_IN_DOCUMENT`. ② 들어 있어도 `detect_pii`(`prototypes/masking/masking.py`)로 다시 검사해 걸리면 L2를 부르지 않고 `422 PII_REMAINING` (`REVIEW-PRIVACY-API.md` 항목 3과 같은 코드) |
 | 이렇게 정한 이유 | `data-flow.md` 5절 #1의 두 후보 중 ㉡(서버가 가린 글자 안으로 한정)을 골랐다. ㉠(브라우저에서 감지)만으로는 서버가 확인할 수 없고, L2 결과는 서버에 저장돼 다른 사용자에게도 보이므로 서버에서 막아야 한다. ②는 서술형과 같은 "서버 재검사" 원칙이다. 그 결과 사용자는 **원본 파일 이미지가 아니라 위 API로 받은 가린 글자에서만** 단어를 고를 수 있다. 화면은 문서 본문을 항목 3의 줄 목록으로 그리고, 그 글자를 골라 항목 2를 부른다 |
 | 동작 | ① (`selected_text`, `user.language`)로 `easy_explanation`을 찾아 있으면 L2를 부르지 않고 그 풀이를 돌려주고 `request_count`를 1 올린다 (R5 "같은 질문에 같은 설명"). ② 없으면 L2를 부르고 결과를 저장한다(`request_count`=1). 사전에 있던 단어면 `glossary_term_id`를 연결한다 |
 | L2에 보내는 것 | `selected_text`, 용어 사전의 기본 설명(있으면), `user.language` (`03` 3-4 L2). 문서 종류는 MVP가 샘플 1종이라 보내지 않는다 (`DATA-MODEL.md` 81행) |
