@@ -2,7 +2,7 @@
 
 - 작성: 석준영 (sjy0128) · 2026-11-17 (2026-11-16 데일리 로그의 '개인정보 설계' 작업)
 - 상태: **초안 (Claude 작성, 팀 확인 전)**
-- 전제 (팀 결정): **사전 정보와 입력값(서술형 답변 포함)은 서버에 저장하지 않는다.** 결정 기록: `docs/decisions/` (작성 필요)
+- 전제 (팀 결정): **사전 정보와 입력값(서술형 답변 포함)은 서버에 저장하지 않는다.** 결정 기록: [`docs/decisions/no-server-storage-user-input.md`](../decisions/no-server-storage-user-input.md) (2026-11-17 회의 합의)
 - 근거: `03-rules-states-llm.md` R1·R3·R4·R7·R8·R9·R10·R11·R12, T3·T4, 3-4 L1~L3 / `backlog.md` US-01~US-05·US-07 / `STACK.md` A안
 - 같이 보는 문서: 항목별 보관·전송·삭제는 [`pii-items.md`](pii-items.md), 서술형 마스킹 설계는 [`l3-masking.md`](l3-masking.md), OCR 마스킹 코드는 [`prototypes/masking/`](../../prototypes/masking/)
 

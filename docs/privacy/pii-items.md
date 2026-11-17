@@ -2,7 +2,7 @@
 
 - 작성: 석준영 (sjy0128) · 2026-11-17
 - 상태: **초안 (Claude 작성, 팀 확인 전)**
-- 전제 (팀 결정): **사전 정보와 입력값(서술형 답변 포함)은 서버에 저장하지 않는다**
+- 전제 (팀 결정): **사전 정보와 입력값(서술형 답변 포함)은 서버에 저장하지 않는다**. 결정 기록: [`docs/decisions/no-server-storage-user-input.md`](../decisions/no-server-storage-user-input.md) (2026-11-17 회의 합의)
 - 근거: `03-rules-states-llm.md` R1·R7·R8·R12·T3·T4, `backlog.md` US-01·US-04·US-05, `DATA-MODEL.md`(필드 이름)
 - 흐름은 [`data-flow.md`](data-flow.md)의 경로 번호(P1~P7)로, 서술형 마스킹은 [`l3-masking.md`](l3-masking.md)로 가리킨다
 

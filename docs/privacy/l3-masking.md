@@ -2,7 +2,7 @@
 
 - 작성: 석준영 (sjy0128) · 2026-11-17
 - 상태: **초안 (Claude 작성, 팀 확인 전)**. `[제안]`은 팀이 정할 값이다
-- 전제 (팀 결정): 사전 정보와 입력값(서술형 답변 포함)은 서버에 저장하지 않는다
+- 전제 (팀 결정): 사전 정보와 입력값(서술형 답변 포함)은 서버에 저장하지 않는다. 결정 기록: [`docs/decisions/no-server-storage-user-input.md`](../decisions/no-server-storage-user-input.md) (2026-11-17 회의 합의)
 - 근거: `03-rules-states-llm.md` R6·R7·R8, 3-4 L3 / `backlog.md` US-05 / `CLAUDE.md` "LLM은 FastAPI 서버에서만 호출"
 - 흐름 위치: [`data-flow.md`](data-flow.md) P4
 
