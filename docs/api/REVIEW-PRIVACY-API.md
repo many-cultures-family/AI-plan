@@ -1,5 +1,7 @@
 > **이 문서의 전제 (팀 결정, 2026-11-17):** 사전 정보와 입력값(서술형 답변 포함)은 **서버에 저장하지 않는다** — `docs/decisions/no-server-storage-user-input.md`. 그래서 F-07(개인정보 감지·결정)은 **브라우저에서** 하고, 서버는 브라우저가 가린 답변을 **다시 검사한 뒤 L3에 중계만** 한다. 흐름·토큰 규칙·결정별 처리는 `docs/privacy/l3-masking.md`(P4 ①~⑧)가 기준이고, 이 문서는 그중 **서버 API 계약**과 검토 단계의 시작·끝(전이)을 적는다. 같은 내용을 옮겨 적지 않고 절 번호로 가리킨다.
 >
+> **코드 출처:** 이 문서가 "기존 코드"라고 부르는 `fields.py`·`review.py`·`llm.py`·`drafts.py`·`db.py`는 이 저장소(AI-plan)가 아니라 **코드 저장소 [`many-cultures-family/DIDIMDOL`](https://github.com/many-cultures-family/DIDIMDOL)** 의 `backend/app/`에 있다. `main`에 있는 것은 `origin/main`, F-03·F-06은 `feat/f02-field-check-v2-leehyosang6950` 브랜치 기준이다 (2026-11-17에 `git show`로 읽고 적음).
+>
 > **이미 만든 F-06 코드는 이 결정과 맞지 않는다.** `DIDIMDOL` 저장소 `feat/f02-field-check-v2-leehyosang6950`(PR #26, `main`에는 없음)의 `review.py`는 `field_answer`에서 답변을 읽고, `review_suggestion`에 제안을 저장하고, 서버에 저장된 사전 정보로 가린다. 아래 "기존 F-06 코드에서 바꿀 것"을 본다.
 >
 > 근거: `backlog.md` US-05, `03-rules-states-llm.md` R3·R6·R7·R8·R9·3-4 L3, `docs/privacy/` 3개 문서, `prototypes/masking/`. 경로·오류 코드는 기존 API 문서와 구현된 코드 방식에 맞췄고, 맞출 것이 없던 값은 `l3-masking.md`의 제안과 프로젝트 원칙(개인정보 최소 수집, 상태 변경은 서버 규칙 검증 뒤)에 맞춰 정했다. 칸마다 근거를 괄호로 적었다. 리뷰에서 바뀔 수 있다.
@@ -35,11 +37,11 @@
 | --- | --- |
 | 요청 (경로·방식) | `POST /api/drafts/{draft_id}/review:start` (`fields:confirm`이 단계를 넘기는 방식에 맞춤) |
 | 입력 | 없음 |
-| 전제 단계 | `step`=`writing` |
-| 동작 | `draft.step`을 `writing` → `review`로 바꾼다. 필수 입력·불일치 확인은 여기서 막지 않고 항목 5(최종 확인)에서 본다 (R9) |
-| 검토 중 답변을 고치면 | 답변이 서버에 없으므로 서버 단계는 `review`로 둔다. 브라우저가 그 답변의 감지 결과·제안을 지우고 ①부터 다시 한다 (`DATA-MODEL.md` 64행 "서술형 값이 바뀌면 다시 검토"). `VIRTUAL-FORM-API.md`의 "`review`에서 값이 바뀌면 `writing`으로 되돌림"은 서버에 값이 있다는 전제라 이 방식으로 바뀐다 |
+| 전제 조건 | `step`=`writing`이고 `draft.fields_confirmed_at`이 채워져 있어야 한다(입력 항목을 확정한 작성 건만 검토로 간다, `FIELD-CHECK-API.md` 항목 3). 비어 있으면 `409 FIELDS_NOT_CONFIRMED` |
+| 동작 | `draft.step`을 `writing` → `review`로 바꾸고 `draft.reviewed_at`을 비운다(아래 항목 3·5). 필수 입력·불일치 확인은 여기서 막지 않고 항목 5(최종 확인)에서 본다 (R9) |
+| 검토 중 답변을 고치면 | 답변이 서버에 없으므로 서버 단계는 `review`로 둔다. 브라우저가 그 답변의 감지 결과·제안을 지우고 ①부터 다시 한 뒤 항목 3을 다시 부른다 (`DATA-MODEL.md` 64행 "서술형 값이 바뀌면 다시 검토"). **`VIRTUAL-FORM-API.md` 항목 2의 "`review` 단계에서 값이 바뀌면 `step`을 `writing`으로 되돌린다"와 반대다.** 그 규칙은 입력값 저장 API(`PUT .../answers/{field_id}`)가 서버에 값을 받는다는 전제인데, 병합된 결정 `no-server-storage-user-input.md`가 그 API를 없애고 "`VIRTUAL-FORM-API.md` — 입력값 저장 API와 서버 불일치 계산을 브라우저 계산으로 바꾼다 (고칠 사람: 담당자)"로 정했다. 그래서 **결정 기록과 이 문서가 우선**하고, `VIRTUAL-FORM-API.md`는 담당자가 고치기 전까지 그 부분이 낡은 내용이다. 서버가 값 변경을 알 수 없으므로 `writing`으로 되돌리는 동작은 만들 수도 없다 |
 | 출력 (성공) | `200`. `{"draft": {"id", "status": "수정", "step": "review"}}` (`fields:confirm` 응답 모양에 맞춤) |
-| 실패 응답 | 공통 규칙의 `401`/`403`/`404`/`409` |
+| 실패 응답 | `409 FIELDS_NOT_CONFIRMED`, 그 외 공통 규칙의 `401`/`403`/`404`/`409` |
 | 권한 | 로그인한 본인만 |
 | 관련 인수 조건 | US-05 '관련 상태 전이: 작성중 → 검토완료'의 시작점 |
 | 화면이 쓰는 곳 | 가상 작성 환경의 '검토하러 가기' 버튼 |
@@ -64,16 +66,17 @@
 | 요청 (경로·방식) | `POST /api/drafts/{draft_id}/review:request` (기존 경로 유지) |
 | 전제 단계 | `step`=`review` |
 | 입력 | `{"answers": [{"form_field_id": 31, "masked_text": "저는 [이름1]입니다. ...", "tokens": ["[이름1]", "[전화번호1]"]}]}` — 브라우저가 ①~③을 마친 **가린 답변**과 쓴 토큰 **이름** 목록. 토큰 값(대응표)은 보내지 않는다 (`l3-masking.md` 4절, 5절 ④) |
-| 입력 검사 | `form_field_id`가 이 작성 건의 서술형 칸이 아니면 `404 FIELD_NOT_FOUND` (`FIELD-CHECK-API.md`·`VIRTUAL-FORM-API.md`와 같은 코드). 본문 모양이 틀렸거나 `tokens`에 `[종류N]`·`[가림N]` 모양이 아닌 값이 있으면 `400 INVALID_REVIEW_REQUEST` (본문 형식 오류를 `422` 대신 `400`으로 받는 `INVALID_FLAGGED_FIELD_IDS`에 맞춤) |
+| 입력 검사 | ① `form_field_id`가 이 작성 건의 서술형 칸이 아니면 `404 FIELD_NOT_FOUND` (`FIELD-CHECK-API.md`·`VIRTUAL-FORM-API.md`와 같은 코드). ② **이 작성 건의 서술형 칸이 하나도 빠짐없이, 한 번씩만** 들어 있어야 한다 — 서버가 `form_field`에서 `format_code`=`long_text`인 칸 목록을 직접 읽어 비교한다. 빠졌거나 겹치면 L3도 재검사도 하지 않고 `400 ANSWERS_INCOMPLETE`, 본문 `{"detail": {"code": "ANSWERS_INCOMPLETE", "field_ids": [빠진 칸]}}`. 화면이 칸을 빼고 보내 재검사(⑤)를 건너뛰는 것을 막는다. ③ 본문 모양이 틀렸거나 `tokens`에 `[종류N]`·`[가림N]` 모양이 아닌 값이 있으면 `400 INVALID_REVIEW_REQUEST` (본문 형식 오류를 `422` 대신 `400`으로 받는 `INVALID_FLAGGED_FIELD_IDS`에 맞춤) |
 | 빈 답변 | `masked_text`가 비었거나 공백뿐이면 `400 ANSWER_EMPTY` (기존 코드와 같음, US-05 실패·거절 인수 조건) |
 | ⑤ 다시 검사 | 토큰을 지운 답변에 OCR 마스킹과 **같은 규칙 한 벌**(`masking.py` `detect_pii`)을 돌린다. 하나라도 걸리면 **L3를 부르지 않고** `422 PII_REMAINING`, 본문 `{"detail": {"code": "PII_REMAINING", "field_ids": [31]}}` (`l3-masking.md` 5절. 코드 옆에 목록을 싣는 `FIELDS_INVALID` 방식에 맞춤). 걸린 글자·위치는 돌려주지 않는다 |
 | ⑥ L3에 보내는 것 | 가린 답변, 칸 `label`·`guide_text`(서버 값), `user.language`, "토큰은 바꾸지 말고 그대로 둘 것, 토큰 안의 값을 짐작하지 말 것" 지시 (`03` 3-4 L3, `l3-masking.md` 5절 ⑥) |
 | L3에 보내지 않는 것 | 답변 원문, 토큰 대응표, 사전 정보 — 셋 다 서버에 오지 않는다 |
 | ⑦ 제안 검사 | 제안의 고친 문장에 **보낸 목록에 없는 토큰**이 있거나 토큰 글자가 바뀌었으면 그 제안을 버린다. 토큰이 빠진 제안은 둔다. 버린 개수만 로그에 남긴다 (`l3-masking.md` 5절 ⑦) |
 | 호출 횟수 제한 | 제안을 저장하지 않으므로 **부를 때마다 L3를 다시 호출한다.** 작성 건 하나에 **5회**까지 받고, 넘으면 L3를 부르지 않고 `409 REVIEW_LIMIT_EXCEEDED` (작성 건 누적 제한을 `409`로 주는 F-02 `REANALYSIS_LIMIT_EXCEEDED`(3회)에 맞춤. 서술형은 답변을 고칠 때마다 다시 검토해야 해서 2회 더 둠). 횟수는 `draft.review_count`(정수, 처음 0)로 센다 — 개인정보가 아니므로 서버에 둬도 결정과 어긋나지 않는다. `DATA-MODEL.md` 반영은 PM. ⑤에서 거절되거나 L3 호출이 실패한 경우는 세지 않는다 |
+| 검토 완료 기록 | ⑤를 통과하고 L3 응답을 받으면 `draft.reviewed_at`에 시각을 남긴다. 항목 5는 이 값이 없으면 받지 않는다. 답변 내용은 남기지 않고 "서버 재검사를 거친 검토가 있었다"는 사실만 남기므로 서버 미저장 결정과 어긋나지 않는다. `DATA-MODEL.md` 반영은 PM |
 | 출력 (성공) | `200`. `{"suggestions": [{"form_field_id", "kind", "suggested_text", "explanation"}]}`. `kind`는 `맞춤법`/`문법`/`질문 의도`/`보충` (`DATA-MODEL.md` `review_suggestion.kind`). **`id`·`decision`은 없다** — 저장하지 않으므로 행 번호가 없고, 결정은 브라우저가 들고 있는다. 화면은 배열 순서로 구분한다. `suggested_text`의 토큰은 브라우저가 되돌린다(⑧) |
-| 서술형 칸이 없으면 | `answers`가 빈 배열이면 L3를 부르지 않고 `200 {"suggestions": []}` (기존 코드와 같음). 횟수도 세지 않는다 |
-| 실패 응답 | `400 ANSWER_EMPTY`, `400 INVALID_REVIEW_REQUEST`, `404 FIELD_NOT_FOUND`, `409 REVIEW_LIMIT_EXCEEDED`, `422 PII_REMAINING`, `502 LLM_CALL_FAILED`(기존과 같음), 그 외 공통 규칙 |
+| 서술형 칸이 없으면 | 서버가 읽은 **이 작성 건의 서술형 칸이 0개일 때만** `answers: []`를 받고, L3를 부르지 않고 `200 {"suggestions": []}` (기존 코드와 같음). 이때도 검토를 마친 것으로 보고 `reviewed_at`을 채운다. 서술형 칸이 있는데 `[]`를 보내면 위 ②로 `400 ANSWERS_INCOMPLETE` |
+| 실패 응답 | `400 ANSWER_EMPTY`, `400 ANSWERS_INCOMPLETE`, `400 INVALID_REVIEW_REQUEST`, `404 FIELD_NOT_FOUND`, `409 REVIEW_LIMIT_EXCEEDED`, `422 PII_REMAINING`, `502 LLM_CALL_FAILED`(기존과 같음), 그 외 공통 규칙 |
 | 바뀌는 상태 | 바뀌지 않는다 (`수정` 유지, `03` 3-4 L3 "이어지는 상태 전이") |
 | 권한 | 로그인한 본인만 |
 | 관련 인수 조건 | US-05 (실패·거절) 빈 답변 거절, (LLM이 있으면) 사람이 확인하기 전 상태 안 바뀜·개인정보 안 보냄 |
@@ -99,17 +102,23 @@
 | 입력 | `{"remaining_required": 0, "unacknowledged_mismatches": 0, "undecided_suggestions": 0, "undecided_privacy": 0}` — 브라우저가 R9 조건 4개를 센 **숫자만**. 값은 보내지 않는다 |
 | 이렇게 정한 이유 | 서버에 입력값이 없어 서버가 직접 셀 수 없다 (`data-flow.md` 5절 #2). 후보 셋 중 ㉠(요약 숫자만 보냄)을 골랐다. ㉡(판정 때만 값을 보냄)은 "서버로 원문을 보내지 않는다"는 결정 취지와 어긋나고, ㉢(브라우저에서 판정·상태 변경)은 CLAUDE.md "상태 변경은 서버 규칙 검증 뒤에만"과 어긋난다. ㉠은 상태를 서버가 바꾸고, 원문이 서버로 가지 않는다 |
 | 규칙 엔진 | 필수 누락·형식·불일치 판정은 브라우저의 규칙 엔진이 한다 — 서버의 `input_format.pattern`을 그대로 써야 서버 규칙과 어긋나지 않는다. 지금 `GET .../fields`는 `format_label`·`format_example`만 주고 `pattern`은 주지 않으므로, `FIELD-CHECK-API.md` "아직 없는 항목"에 이미 후보로 적힌 `GET /api/input-formats`(코드·이름·예시·`pattern`)를 둔다. LLM은 판정하지 않는다 (R3) |
-| 동작 | 서버는 ① 숫자 4개가 모두 0인지 ② 서버에 있는 조건(`fields_confirmed_at`이 채워져 있음)을 본다. 모두 맞으면 `status`를 `성공`으로, 하나라도 아니면 `반려`로 바꾸고 `reject_reason`=`CONDITION_UNMET`을 남긴다 (R9 "조건이 남은 채 완성을 요청하면 반려", `DATA-MODEL.md` `reject_reason`). 이 요청 자체가 R9의 "사용자가 완성본을 최종 확인"이다 |
+| 동작 | 서버는 먼저 **검토 절차가 실제로 있었는지** 본다: `draft.reviewed_at`이 비어 있으면(항목 3을 한 번도 통과하지 않음) 상태를 바꾸지 않고 `409 REVIEW_NOT_DONE`. 그다음 ① 숫자 4개가 모두 0인지 ② 서버에 있는 조건(`fields_confirmed_at`이 채워져 있음)을 본다. 모두 맞으면 `status`를 `성공`으로, 하나라도 아니면 `반려`로 바꾸고 `reject_reason`=`CONDITION_UNMET`을 남긴다 (R9 "조건이 남은 채 완성을 요청하면 반려", `DATA-MODEL.md` `reject_reason`). 이 요청 자체가 R9의 "사용자가 완성본을 최종 확인"이다 |
 | 출력 | `200`. `{"draft": {"id", "status": "성공", "step": "review"}}` 또는 `{"draft": {"id", "status": "반려", "step": "review", "reject_reason": "CONDITION_UNMET"}}` (`OCR-API.md`처럼 결과가 `반려`여도 요청은 처리됐으므로 `200`) |
-| 실패 응답 | 숫자 4개가 다 없거나 0 이상의 정수가 아니면 `400 INVALID_COMPLETE_REQUEST`. 그 외 공통 규칙 |
+| 실패 응답 | `409 REVIEW_NOT_DONE`(검토를 거치지 않음). 숫자 4개가 다 없거나 0 이상의 정수가 아니면 `400 INVALID_COMPLETE_REQUEST`. 그 외 공통 규칙 |
 | 성공 뒤 | 브라우저가 감지 결과·검토 제안을 지운다 (T4 "처리 목적 달성 시점", `pii-items.md` 1절). 서버에는 지울 것이 없다 |
-| 한계 | 숫자는 브라우저가 보낸 값이라 서버가 참인지 확인할 수 없다. 이 서비스는 실제 기관에 아무것도 보내지 않으므로(R4·R10) 잘못된 숫자의 결과는 사용자 자신의 연습 결과에 그친다 |
+| 서버가 막는 것과 못 막는 것 | **막는 것:** 입력 항목 확정 없이 검토 시작(항목 1), 서술형 칸을 빼고 검토 요청(항목 3 ②), 검토를 한 번도 거치지 않고 완성(`REVIEW_NOT_DONE`) — 모두 서버에 있는 값으로 판정한다. **못 막는 것:** 검토를 거친 뒤 브라우저가 거짓 숫자를 보내는 경우. 서버에 입력값이 없어 확인할 수 없다(서버 미저장 결정의 대가). 이 서비스는 실제 기관에 아무것도 보내지 않으므로(R4·R10) 그 결과는 사용자 자신의 연습 결과에 그친다 |
 | 권한 | 로그인한 본인만 |
 | 관련 인수 조건 | US-05 (LLM이 있으면) "사람이 확인하기 전에는 상태가 바뀌지 않는다", R9 |
 | 화면이 쓰는 곳 | 서술형 검토 화면의 '완성하기' 버튼 |
 
 ### 입력·출력 예시
 ```
+요청 (입력 항목 확정 전):
+POST /api/drafts/1/review:start
+
+응답(실패): 409
+{"detail": {"code": "FIELDS_NOT_CONFIRMED"}}
+
 요청:
 POST /api/drafts/1/review:start
 
@@ -134,6 +143,20 @@ POST /api/drafts/1/review:request
 응답(실패): 422
 {"detail": {"code": "PII_REMAINING", "field_ids": [31]}}
 
+요청 (서술형 칸이 있는데 빈 배열):
+POST /api/drafts/1/review:request
+{"answers": []}
+
+응답(실패): 400
+{"detail": {"code": "ANSWERS_INCOMPLETE", "field_ids": [31]}}
+
+요청 (검토를 한 번도 안 거침):
+POST /api/drafts/1:complete
+{"remaining_required": 0, "unacknowledged_mismatches": 0, "undecided_suggestions": 0, "undecided_privacy": 0}
+
+응답(실패): 409
+{"detail": {"code": "REVIEW_NOT_DONE"}}
+
 요청:
 POST /api/drafts/1:complete
 {"remaining_required": 0, "unacknowledged_mismatches": 0, "undecided_suggestions": 1, "undecided_privacy": 0}
@@ -149,7 +172,7 @@ POST /api/drafts/1:complete
 | `get_review`: `field_answer`를 조인해 `answers[].value`를 돌려줌 | `form_field`만 읽어 항목 2 모양(`fields`)으로 |
 | `request_review`: 본문 없이 서버 `field_answer.value`를 읽음 | 항목 3 입력(가린 답변 + 토큰 이름)을 받음 |
 | `_mask_known_prior_info`: 서버에 저장된 사전 정보로 가림 | 지운다. 사전 정보 대조는 브라우저 몫 (`l3-masking.md` 2절) |
-| (없음) | ⑤ 다시 검사 → `422 PII_REMAINING`, ⑦ 제안 토큰 검사, 토큰 유지 지시, `review_count` 제한 추가 |
+| (없음) | 서술형 칸 전부 포함 검사(`ANSWERS_INCOMPLETE`), ⑤ 다시 검사 → `422 PII_REMAINING`, ⑦ 제안 토큰 검사, 토큰 유지 지시, `review_count` 제한, `reviewed_at` 기록 추가 |
 | `review_suggestion` 저장과 멱등성 처리 | 지운다 |
 | `decide_suggestion` (`PATCH .../review/suggestions/{id}`) | 엔드포인트를 지운다. 제안 결정은 브라우저가 들고 있는다 |
 | `db.py` `field_answer`·`review_suggestion`·`prior_info` 테이블, `prior_info.py`, `crypto.py` | 서버 모델에서 뺀다 (`no-server-storage-user-input.md` "이 결정으로 바뀌는 것") |
@@ -160,8 +183,8 @@ POST /api/drafts/1:complete
 
 ## 아직 없는 항목
 - `GET /api/input-formats` — 브라우저 규칙 엔진이 쓸 형식 목록. `FIELD-CHECK-API.md` 담당 영역이라 그 문서에 추가한다
-- `DATA-MODEL.md` 반영 (PM): `draft.review_count` 추가, `prior_info`·`field_answer`·`privacy_detection`·`review_suggestion`을 서버 모델에서 빼기 (결정 기록에 이미 적힘)
-- `VIRTUAL-FORM-API.md` 반영 (담당자): 입력값 저장·불일치 계산을 브라우저로, "`review`에서 값이 바뀌면 `writing`으로" 규칙 삭제, "아직 없는 항목"의 단계 전이 ②·③을 이 문서 항목 1·5로 연결
+- `DATA-MODEL.md` 반영 (PM): `draft.review_count`(정수)·`draft.reviewed_at`(날짜시간) 추가, `prior_info`·`field_answer`·`privacy_detection`·`review_suggestion`을 서버 모델에서 빼기 (결정 기록에 이미 적힘)
+- `VIRTUAL-FORM-API.md` 반영 (담당자 이효상, CLAUDE.md "표가 있는 공용 문서는 배정받은 사람만 고친다"라 이 PR에서 고치지 않음): 입력값 저장·불일치 계산을 브라우저로, "`review`에서 값이 바뀌면 `writing`으로" 규칙 삭제, "아직 없는 항목"의 단계 전이 ②·③을 이 문서 항목 1·5로 연결
 
 ## 팀 확인이 필요한 것
 > CLAUDE.md상 Claude가 정하지 않는 것(인수 조건·규칙 문구, MVP 범위, 다른 사람의 코드)이다. 추천안만 적는다.
