@@ -4,6 +4,8 @@
 >
 > **OCR 엔진(PaddleOCR / EasyOCR)은 아직 정해지지 않았다.** 스택 결정이라 팀이 정한다(CLAUDE.md). `STACK.md` "확인할 것"(80·81행)의 기한(10월 27일)이 지났는데 결과 기록이 없다. 아래 API는 엔진과 관계없이 정해 두었고, 엔진 출력을 `OcrLine`(줄 텍스트 + `page` + `bbox`)으로 바꾸는 부분만 엔진에 따라 달라진다.
 >
+> **코드 출처:** 이 문서가 "기존 코드"라고 부르는 `fields.py`·`review.py`·`llm.py`·`drafts.py`·`db.py`는 이 저장소(AI-plan)가 아니라 **코드 저장소 [`many-cultures-family/DIDIMDOL`](https://github.com/many-cultures-family/DIDIMDOL)** 의 `backend/app/`에 있다 (2026-11-17 `origin/main` 기준으로 읽고 적음).
+>
 > 경로·응답·오류 코드는 기존 API 문서와 구현된 코드 방식에 맞췄다. 칸마다 근거를 괄호로 적었다. 리뷰에서 바뀔 수 있다.
 
 ## 공통 규칙
@@ -27,9 +29,10 @@
 | 동기·비동기 | **동기**로 처리한다(인식이 끝날 때까지 응답을 기다림). MVP는 샘플 신청서 1종, 로컬 시연이라 진행 상태 조회 API를 따로 두지 않는다 (`fields:infer`의 L1 호출도 동기). 처리 시간은 엔진을 정한 뒤 `확인 필요`이고, 너무 길면 그때 비동기(`202`)로 바꾼다 |
 | 입력 | 없음 (경로의 `draft_id`만) |
 | 동작 | ① 올린 파일을 OCR로 읽어 `OcrLine` 목록으로 바꾼다 → ② `mask_ocr_lines()`로 가린다 → ③ 아래 "실패"에 걸리지 않으면 `document.masked_text`·`document.empty_pages`를 저장한다 → ④ `draft.step`을 `upload` → `field_check`로 바꾼다 (`DATA-MODEL.md` step 대응표, backlog '인식완료') |
-| `masked_text` 모양 | 가린 줄마다 페이지와 칸 위치를 앞에 붙여 저장한다: `[p1 0.12,0.34,0.30,0.04] 성명: [이름]` (`bbox`는 `DATA-MODEL.md` `form_field.bbox`와 같은 0~1 비율). L1(`fields:infer`)은 `masked_text`만 받아 항목마다 `bbox`를 내놓아야 하므로(`llm.py` 응답 형식의 필수 값), 위치를 따로 저장하지 않고 `masked_text`에 넣는다 — 기존 `fields:infer`·`document` 테이블을 바꾸지 않아도 된다. 프로토타입의 `MaskResult.masked_text`(줄 텍스트만 이어 붙임)를 그대로 쓰지 않고 서버가 이 모양으로 만든다 |
+| `masked_text` 모양 | 가린 줄마다 페이지와 칸 위치를 앞에 붙여 저장한다: `@p1 0.12,0.34,0.30,0.04 \| 성명: [이름]` — `@p<페이지> x,y,w,h` 다음 ` \| ` 뒤가 그 줄의 가린 글자다(`bbox`는 `DATA-MODEL.md` `form_field.bbox`와 같은 0~1 비율). **위치 표기에는 대괄호를 쓰지 않는다.** 대괄호는 개인정보 토큰(`[이름]`, `pii-items.md` 2절) 전용이라, 둘을 같은 문법으로 쓰면 L1·재검사·화면이 헷갈릴 수 있다. L1(`fields:infer`)은 `masked_text`만 받아 항목마다 `bbox`를 내놓아야 하므로(`llm.py` 응답 형식의 필수 값), 위치를 따로 저장하지 않고 `masked_text`에 넣는다 — `document` 테이블을 바꾸지 않아도 된다. 프로토타입의 `MaskResult.masked_text`(줄 텍스트만 이어 붙임)를 그대로 쓰지 않고 서버가 이 모양으로 만든다 |
+| L1 프롬프트에 넣을 지시 | `llm.py` `infer_fields`의 프롬프트에 다음을 넣는다: "각 줄 앞 `@p<페이지> x,y,w,h \|`는 그 줄의 위치 데이터다. 항목의 `bbox`는 이 값에서 고른다. 대괄호 `[이름]`·`[전화번호]` 등은 가린 개인정보 토큰이므로 값을 짐작하지 말고, 항목 이름·설명에 옮겨 쓰지 않는다." 지금 `fields:infer` 코드는 이 모양을 모르므로 OCR 구현 때 같이 고친다 |
 | 가리는 개인정보 | `pii-items.md` 2절의 8종. 라벨 없는 날짜는 L1에 필요해서 남긴다. 서술형 재검사(`REVIEW-PRIVACY-API.md` 항목 3 ⑤)·L2 검사(`WORD-EXPLAIN-API.md` 항목 2)와 **같은 규칙 한 벌**을 쓴다 |
-| 출력 (성공) | `200`. `{"draft": {"id", "status": "수정", "step": "field_check"}, "document": {"page_count", "empty_pages": []}}` (`POST /api/drafts` 응답의 `draft`+`document` 모양에 맞춤). `masked_text`는 넣지 않는다 — 다음 화면(입력 항목 확인)은 `GET .../fields`를 쓰고, 가린 글자를 화면에 따로 보여 줄 일이 없다 |
+| 출력 (성공) | `200`. `{"draft": {"id", "status": "수정", "step": "field_check"}, "document": {"page_count", "empty_pages": []}}` (`POST /api/drafts` 응답의 `draft`+`document` 모양에 맞춤). `masked_text`는 넣지 않는다 — 다음 화면(입력 항목 확인)은 `GET .../fields`를 쓴다. 가린 문서 글자가 필요한 화면(단어 고르기)은 `WORD-EXPLAIN-API.md` 항목 3(`GET .../document/text`)으로 받는다 |
 | 실패와 상태 | `03` R1·3-2대로 **`수정` → `반려`**로 바꾸고 `draft.reject_reason`에 사유 코드를 남긴다. 상태 이름은 `03` 3-2를 따르라는 CLAUDE.md 규칙에 맞췄다. `masked_text`는 저장하지 않는다 |
 | 실패 사유 코드 | `OCR_FAILED`(글자를 하나도 읽지 못함), `PAGE_MISSING`(`empty_pages` 1개 이상, `DATA-MODEL.md` 52행), `PII_REMAINING`(`mask_ocr_lines()`가 `residual=True`를 돌려줌 — US-01 인수 조건 3번 "개인정보가 하나라도 남으면") |
 | 실패 응답 | `200`. `{"draft": {"id", "status": "반려", "step": "upload", "reject_reason": "OCR_FAILED"}}` — 요청 자체는 처리됐고 결과가 `반려`라서 `200`으로 주고, 화면은 `reject_reason` 코드로 안내 문구를 만든다 (R3, `DRAFT-STATUS-API.md` 취소 응답이 바뀐 `draft`를 `200`으로 돌려주는 방식에 맞춤) |
@@ -70,7 +73,7 @@ POST /api/drafts/1/document:recognize
 | 6 | 사전 정보 입력 (브라우저에만 저장) | 없음 (서버 API 없음) | `no-server-storage-user-input.md` | 화면 없음 | 미실행 |
 | 7 | `prior_info` → `writing` 전이 | 없음 | `VIRTUAL-FORM-API.md` "아직 없는 항목" ① | 없음 | 미실행 |
 | 8 | 가상 작성 (입력값·불일치 계산은 브라우저) | 칸 목록 `GET /api/drafts/{id}/fields` | `VIRTUAL-FORM-API.md` (결정에 맞게 담당자가 고칠 것) | 있음 (칸 목록만) | 미실행 |
-| 9 | 단어 설명·쉬운 풀이 | `GET /api/glossary`, `POST /api/drafts/{id}/explanations` | `WORD-EXPLAIN-API.md` | 없음 | 미실행 |
+| 9 | 단어 설명·쉬운 풀이 | `GET …/document/text`, `GET /api/glossary`, `POST /api/drafts/{id}/explanations` | `WORD-EXPLAIN-API.md` | 없음 | 미실행 |
 | 10 | `writing` → `review` 전이 | `POST /api/drafts/{id}/review:start` | `REVIEW-PRIVACY-API.md` 항목 1 | 없음 | 미실행 |
 | 11 | 개인정보 감지·결정·가리기 (브라우저) | `GET /api/privacy-rules` | `REVIEW-PRIVACY-API.md` 항목 4, `l3-masking.md` | 없음 | 미실행 |
 | 12 | 서술형 검토 요청 | `GET …/review`, `POST …/review:request` | `REVIEW-PRIVACY-API.md` 항목 2·3 | 없음 (`f02-v2` 브랜치 코드는 결정 전 방식) | 미실행 |
