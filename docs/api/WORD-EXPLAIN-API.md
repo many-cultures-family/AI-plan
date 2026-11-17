@@ -2,6 +2,8 @@
 >
 > **F-05(단어·문장 설명)는 `backlog.md`에 스토리와 인수 조건이 아직 없다** (`mvp-scope.md` 18·20행, `PRD.md` 47행). 인수 조건은 팀이 직접 쓴다(CLAUDE.md). 이 문서의 API 세부는 정해 두었고, 스토리가 생기면 "관련 인수 조건" 칸만 채운다.
 >
+> **코드 출처:** 이 문서가 "기존 코드"라고 부르는 `fields.py`·`review.py`·`llm.py`·`drafts.py`·`db.py`는 이 저장소(AI-plan)가 아니라 **코드 저장소 [`many-cultures-family/DIDIMDOL`](https://github.com/many-cultures-family/DIDIMDOL)** 의 `backend/app/`에 있다 (2026-11-17 `origin/main` 기준으로 읽고 적음).
+>
 > 경로·오류 코드는 기존 API 문서와 구현된 코드(`fields.py`·`review.py`·`drafts.py`·`llm.py`) 방식에 맞췄고, 맞출 것이 없던 값은 프로젝트 원칙(개인정보 최소 수집 R8, 무료, 같은 질문에 같은 설명 R5)에 맞춰 정했다. 칸마다 근거를 괄호로 적었다. 리뷰에서 바뀔 수 있다.
 
 ## 공통 규칙
@@ -40,8 +42,8 @@
 | --- | --- |
 | 요청 (경로·방식) | `POST /api/drafts/{draft_id}/explanations` (작성 건 소유·`masked_text` 확인을 위해 `drafts/{id}` 아래에 둠) |
 | 입력 | `{"selected_text": "보호자 동의"}` — 1~100자 (`input_format`의 `short_text` 상한 100자에 맞춤) |
-| `selected_text` 검사 (개인정보 차단) | **두 단계로 막는다.** ① 서버가 `selected_text`가 이 작성 건의 **이미 가린** 문서 글자 — `document.masked_text`, `form_field`의 `label`·`description`·`guide_text`·`options` — 안에 그대로 들어 있는지 본다. 없으면 `400 TEXT_NOT_IN_DOCUMENT`. ② 들어 있어도 `detect_pii`(`prototypes/masking/masking.py`)로 다시 검사해 걸리면 L2를 부르지 않고 `422 PII_REMAINING` (`REVIEW-PRIVACY-API.md` 항목 3과 같은 코드) |
-| 이렇게 정한 이유 | `data-flow.md` 5절 #1의 두 후보 중 ㉡(서버가 가린 글자 안으로 한정)을 골랐다. ㉠(브라우저에서 감지)만으로는 서버가 확인할 수 없고, L2 결과는 서버에 저장돼 다른 사용자에게도 보이므로 서버에서 막아야 한다. ②는 서술형과 같은 "서버 재검사" 원칙이다. 그 결과 사용자는 **원본 파일 이미지가 아니라 가린 글자로 보여 준 칸 이름·안내 문구·문서 글자에서만** 단어를 고를 수 있다 (화면 담당이 반영) |
+| `selected_text` 검사 (개인정보 차단) | **두 단계로 막는다.** ① 서버가 `selected_text`가 이 작성 건의 **이미 가린** 문서 글자 안에 그대로 들어 있는지 본다. 대상은 화면이 실제로 받아 보여 주는 글자와 같다: 문서 본문 줄(`document.masked_text`, 항목 3으로 내려 줌), 칸 이름·설명·선택지(`form_field`의 `label`·`description`·`options`, `GET .../fields`로 내려 줌), 서술형 안내 문구(`guide_text`, `GET .../review`로 내려 줌). 없으면 `400 TEXT_NOT_IN_DOCUMENT`. ② 들어 있어도 `detect_pii`(`prototypes/masking/masking.py`)로 다시 검사해 걸리면 L2를 부르지 않고 `422 PII_REMAINING` (`REVIEW-PRIVACY-API.md` 항목 3과 같은 코드) |
+| 이렇게 정한 이유 | `data-flow.md` 5절 #1의 두 후보 중 ㉡(서버가 가린 글자 안으로 한정)을 골랐다. ㉠(브라우저에서 감지)만으로는 서버가 확인할 수 없고, L2 결과는 서버에 저장돼 다른 사용자에게도 보이므로 서버에서 막아야 한다. ②는 서술형과 같은 "서버 재검사" 원칙이다. 그 결과 사용자는 **원본 파일 이미지가 아니라 위 API로 받은 가린 글자에서만** 단어를 고를 수 있다. 화면은 문서 본문을 항목 3의 줄 목록으로 그리고, 그 글자를 골라 항목 2를 부른다 |
 | 동작 | ① (`selected_text`, `user.language`)로 `easy_explanation`을 찾아 있으면 L2를 부르지 않고 그 풀이를 돌려주고 `request_count`를 1 올린다 (R5 "같은 질문에 같은 설명"). ② 없으면 L2를 부르고 결과를 저장한다(`request_count`=1). 사전에 있던 단어면 `glossary_term_id`를 연결한다 |
 | L2에 보내는 것 | `selected_text`, 용어 사전의 기본 설명(있으면), `user.language` (`03` 3-4 L2). 문서 종류는 MVP가 샘플 1종이라 보내지 않는다 (`DATA-MODEL.md` 81행) |
 | L2 호출 방법 | `backend/app/llm.py`의 `_call_gemini`를 그대로 쓰고 `explain_text` 함수만 추가한다 (`infer_fields`·`review_answers`가 같은 방식, 모델명은 `.env`의 `GEMINI_MODEL`) |
@@ -52,6 +54,22 @@
 | 권한 | 로그인한 본인만 (작성 건 소유 확인). 만들어진 풀이는 사용자끼리 같이 쓴다 (`DATA-MODEL.md` 81행) |
 | 관련 인수 조건 | 없음 — F-05 스토리 작성 뒤 채움 (근거: R5, `03` 3-4 L2) |
 | 화면이 쓰는 곳 | 가상 작성 환경 — 기본 설명 아래 '이해하지 못함' 버튼 |
+
+## 항목 3: 가린 문서 글자 조회 (기능 ID: F-05 / 스토리: 없음)
+
+> 항목 2의 검사 ①이 "가린 문서 글자 안에 있는지"를 보려면, 화면이 그 글자를 받아 사용자에게 고르게 할 수 있어야 한다. 지금 `docs/api/`에는 `masked_text`를 내려 주는 API가 없어 이 항목을 둔다.
+
+| 항목 | 내용 |
+| --- | --- |
+| 요청 (경로·방식) | `GET /api/drafts/{draft_id}/document/text` (작성 건 아래 하위 자원을 명사 경로로 읽는 `GET .../fields`·`GET .../review`에 맞춤) |
+| 입력 | 없음 |
+| 전제 상태 | `draft.step`이 `field_check` 이후(`field_check`·`prior_info`·`writing`·`review`)이고 `masked_text`가 있어야 한다. 비어 있으면 `422 DOCUMENT_NOT_READY` (`fields:infer`와 같은 코드) |
+| 동작 | 저장된 `document.masked_text`를 줄 단위로 나눠, 줄 앞의 위치 표기(`OCR-API.md` "`masked_text` 모양")를 `page`·`bbox`로 풀어 돌려준다. 가리기 전 글자는 서버에 없으므로 돌려줄 수도 없다 |
+| 출력 (성공) | `200`. `{"lines": [{"page": 1, "bbox": {"x": 0.12, "y": 0.34, "w": 0.30, "h": 0.04}, "text": "성명: [이름]"}]}` — 화면은 `bbox`로 원본 위에 겹쳐 그리거나 줄 목록으로 보여 주고, 토큰(`[이름]` 등)은 "가려진 정보"로 표시한다 |
+| 실패 응답 | `422 DOCUMENT_NOT_READY`, 그 외 공통 규칙의 `401`/`403`/`404`/`409` |
+| 권한 | 로그인한 본인만 |
+| 관련 인수 조건 | 없음 — F-05 스토리 작성 뒤 채움 |
+| 화면이 쓰는 곳 | 가상 작성 환경 — 단어를 고르는 문서 본문 |
 
 ### 입력·출력 예시
 ```
@@ -74,6 +92,12 @@ POST /api/drafts/1/explanations
 
 응답(실패): 400
 {"detail": {"code": "TEXT_NOT_IN_DOCUMENT"}}
+
+요청:
+GET /api/drafts/1/document/text
+
+응답(성공): 200
+{"lines": [{"page": 1, "bbox": {"x": 0.12, "y": 0.34, "w": 0.30, "h": 0.04}, "text": "성명: [이름]"}]}
 ```
 
 ## 운영 방식 (API를 두지 않는 것)
