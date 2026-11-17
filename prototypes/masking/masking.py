@@ -38,12 +38,14 @@ _PATTERNS: list[tuple[str, re.Pattern[str]]] = [
             r"\s*[-.)]?\s*\d{3,4}\s*[-.]?\s*\d{4}(?!\d)"
         ),
     ),
-    # 도로명(…로/…길 + 번호) 또는 지번(…동/읍/면/리 + 번호). 앞쪽 시·도·구 이름까지 같이 가린다.
+    # 도로명(…로/…길 + 번호, …로12번길 34) 또는 지번(…동/읍/면/리 + 번호). 앞쪽 시·도·구 이름까지 같이 가린다.
+    # 번호 뒤에 '번·개·명' 같은 단위가 오면 주소가 아니다 ("연락처로 123 번 주세요").
     (
         "address",
         re.compile(
             r"(?:[가-힣]+(?:특별시|광역시|특별자치시|특별자치도|도|시|군|구)\s+)*"
-            r"[가-힣0-9]+(?:로|길|동|읍|면|리)\s*\d+(?:-\d+)?(?:\s*번지)?"
+            r"[가-힣0-9]+(?:로|길|동|읍|면|리)\s*\d+(?:번길\s*\d+)?(?:-\d+)?(?:\s*번지)?"
+            r"(?!\d)(?!\s*(?:번(?!지)|개|명|원|회|시|분|일|월|년|세|살|%))"
         ),
     ),
     # 위 규칙에 안 걸린 긴 숫자(계좌·여권·카드 번호 등)는 안전하게 가린다.
@@ -51,16 +53,27 @@ _PATTERNS: list[tuple[str, re.Pattern[str]]] = [
 ]
 
 # 2) 라벨 뒤 값을 가리는 규칙. 이름처럼 값 모양만으로 알 수 없는 항목용.
-#    "성명: 홍길동", "성 명  홍길동", "Name: Nguyen Van A" 같은 줄에서 라벨 뒤 값 전체를 가린다.
-_LABEL_TAIL = r"\s*(?:\([^)]*\))?\s*[:：]?\s*"  # "성명(한글):"처럼 괄호 설명이 붙은 라벨
+#    "성명: 홍길동", "성 명  홍길동", "Name: Nguyen Van A", "성명 (홍길동)" 같은 줄에서 라벨 뒤 값을 가린다.
+#    라벨에 **붙어 있는** 괄호는 설명이다 ("성명(한글) 홍길동"). 띄어 쓴 괄호는 값이다 ("성명 (홍길동)").
+_LABEL_TAIL = r"(?:\([^)]*\))?\s*[:：]?\s*"
 _LABELS: list[tuple[str, re.Pattern[str]]] = [
     ("name", re.compile(r"(?:성\s*명|이\s*름|Name)" + _LABEL_TAIL, re.IGNORECASE)),
     ("birth_date", re.compile(r"(?:생\s*년\s*월\s*일|Date of Birth)" + _LABEL_TAIL, re.IGNORECASE)),
     ("address", re.compile(r"(?:주\s*소|Address)" + _LABEL_TAIL, re.IGNORECASE)),
 ]
-# 개인정보가 아닌데 숫자 규칙에 걸리기 쉬운 것. 먼저 자리를 차지해 가리지 않게 한다.
-# 날짜(신청일·기한)는 L1이 칸을 이해하는 데 필요하다. 생년월일은 라벨 규칙으로 따로 가린다.
+# 개인정보가 아닌 칸 라벨. 라벨 값은 여기서 끝난다 ("생년월일 1990-01-01 신청일 …", "… 배우자 생년월일 …").
+# 이름 속 글자와 헷갈리지 않게 줄 처음이나 공백 뒤에서만 찾는다.
+_STOP_LABELS = re.compile(
+    r"(?<!\S)(?:신청인|신청일|접수일|작성일|배우자|자녀|국적|성별|연락처|휴대전화|전화번호|전화|이메일|서명|날짜|일자)"
+)
+# 생년월일 라벨 뒤에서 값으로 볼 날짜 모양. 없으면 라벨 뒤 값 전체를 가린다 (안전한 쪽).
+_DATE_VALUE = re.compile(
+    r"\d{2,4}\s*[-./년]\s*\d{1,2}\s*[-./월]\s*\d{1,2}\s*일?|(?<!\d)\d{6}(?:\d{2})?(?!\d)"
+)
+# 개인정보가 아닌데 숫자 규칙에 걸리기 쉬운 것. 값 모양 규칙이 여기를 가리지 못하게 막는다.
+# 날짜(신청일·기한)는 L1이 칸을 이해하는 데 필요하다. 라벨 값 안에 있으면 라벨 규칙이 이긴다.
 _SAFE = re.compile(r"(?<!\d)\d{4}\s*[-./]\s*\d{1,2}\s*[-./]\s*\d{1,2}(?!\d)")
+_TOKEN_RE = re.compile("|".join(re.escape(t) for t in TOKENS.values()))
 # 라벨만 있고 값이 비어 있는 빈칸(예: "성명: ____")은 가리지 않는다.
 _BLANK = re.compile(r"^[\s_.\-()（）□☐]*$")
 
@@ -70,7 +83,7 @@ class Finding:
     """감지 결과. 원문 값은 담지 않는다 (R8: 감지된 원문은 저장하지 않음)."""
 
     kind: str
-    start: int
+    start: int  # 가리기 **전** 그 줄(또는 답변) 원문 기준 위치. 가린 뒤 텍스트의 위치가 아니다
     end: int
     line: int = -1  # OCR 줄 번호. 서술형 답변이면 -1
 
@@ -94,46 +107,79 @@ class MaskResult:
         return "\n".join(line.text for line in self.lines)
 
 
+def _overlaps(a: Finding, b: Finding) -> bool:
+    return a.start < b.end and b.start < a.end
+
+
+def _label_value(text: str, start: int, end: int, kind: str) -> Finding | None:
+    """라벨 뒤 [start, end) 구간에서 가릴 값의 위치를 고른다. 빈칸이면 None."""
+    region = text[start:end]
+    lead = len(region) - len(region.lstrip())
+    start, region = start + lead, region.strip()
+    if not region:
+        return None
+    # 띄어 쓴 괄호 안이 값이다: "성명 (홍길동)" → "홍길동"만 가린다
+    if region.startswith("("):
+        close = region.find(")")
+        inner = region[1:close] if close != -1 else region[1:]
+        if _BLANK.match(inner):
+            return None
+        lead = len(inner) - len(inner.lstrip())
+        start, region = start + 1 + lead, inner.strip()
+    elif _BLANK.match(region):
+        return None
+    # 생년월일은 날짜 하나만 가린다 (뒤에 오는 다른 글자를 삼키지 않게)
+    if kind == "birth_date":
+        m = _DATE_VALUE.search(region)
+        if m:
+            return Finding(kind, start + m.start(), start + m.end())
+    return Finding(kind, start, start + len(region))
+
+
 def _spans(text: str) -> list[Finding]:
-    """한 줄에서 개인정보 위치를 찾는다. 겹치면 먼저 찾은(우선순위 높은) 것을 남긴다."""
-    kept: list[Finding] = []
+    """한 줄에서 개인정보 위치를 찾는다."""
+    safe = [Finding("_safe", m.start(), m.end()) for m in _SAFE.finditer(text)]
 
-    def add(f: Finding) -> None:
-        if all(f.end <= k.start or f.start >= k.end for k in kept):
-            kept.append(f)
-
-    # 날짜 자리를 먼저 막아 둔다 (나중에 결과에서 뺀다).
-    for m in _SAFE.finditer(text):
-        add(Finding("_safe", m.start(), m.end()))
-
-    # 값 모양 규칙 먼저: "성명: 홍길동 010-…"에서 전화번호를 따로 잡는다.
+    # 1) 값 모양 규칙. 날짜 자리와 겹치거나 먼저 찾은 것과 겹치면 버린다.
+    found: list[Finding] = []
     for kind, pattern in _PATTERNS:
         for m in pattern.finditer(text):
-            add(Finding(kind, m.start(), m.end()))
+            f = Finding(kind, m.start(), m.end())
+            if not any(_overlaps(f, k) for k in safe + found):
+                found.append(f)
 
-    # 라벨 값은 다음 라벨이나 이미 찾은 개인정보 앞까지만이다.
-    # 예: "성명: 홍길동 생년월일: 1990.01.01" → 이름은 "홍길동"까지.
-    # 라벨 뒤 날짜는 생년월일이므로 막아 둔 자리를 푼다.
+    # 2) 라벨 값. 다음 라벨(개인정보·일반 라벨)이나 1)에서 찾은 개인정보 앞에서 끝난다.
+    #    날짜 자리(safe)는 끝 지점으로 쓰지 않는다: "성명: 2026-11-17 홍길동"은 통째로 이름 칸이다.
     label_hits = sorted(
-        ((m.start(), m.end(), kind) for kind, p in _LABELS for m in p.finditer(text)),
+        (m.start(), m.end(), kind) for kind, p in _LABELS for m in p.finditer(text)
     )
-    kept[:] = [
-        k
-        for k in kept
-        if not (
-            k.kind == "_safe"
-            and any(kind == "birth_date" and end == k.start for _, end, kind in label_hits)
-        )
-    ]
-    stops = [s for s, _, _ in label_hits] + [k.start for k in kept] + [len(text)]
+    stops = (
+        [s for s, _, _ in label_hits]
+        + [m.start() for m in _STOP_LABELS.finditer(text)]
+        + [f.start for f in found]
+        + [len(text)]
+    )
     for _, value_start, kind in label_hits:
         value_end = min(s for s in stops if s >= value_start)
-        value = text[value_start:value_end].rstrip()
-        if _BLANK.match(value):
-            continue
-        add(Finding(kind, value_start, value_start + len(value)))
+        f = _label_value(text, value_start, value_end, kind)
+        if f and not any(_overlaps(f, k) for k in found):
+            found.append(f)
 
-    return sorted((k for k in kept if k.kind != "_safe"), key=lambda f: f.start)
+    return sorted(found, key=lambda f: f.start)
+
+
+def _has_residual(masked: str) -> bool:
+    """가린 텍스트에 개인정보 모양이 남았는지. 토큰 자체(라벨 뒤 '[이름]' 등)는 남은 것으로 보지 않는다.
+
+    토큰은 같은 길이의 '\\x00'으로 바꿔 검사한다.
+    - 공백으로 바꾸면 토큰 양쪽 숫자가 이어져 주민등록번호로 잘못 보인다
+    - 그대로 두면 토큰 안의 글자('[주소]'의 '주소')가 라벨로 다시 잡힌다
+    """
+    neutral = _TOKEN_RE.sub(lambda m: "\x00" * len(m.group()), masked)
+    for f in _spans(neutral):
+        if neutral[f.start : f.end].replace("\x00", "").strip(" ()"):
+            return True
+    return False
 
 
 def detect_pii(text: str) -> list[Finding]:
@@ -149,12 +195,6 @@ def _replace(text: str, spans: list[Finding]) -> str:
         cursor = f.end
     out.append(text[cursor:])
     return "".join(out)
-
-
-def _strip_tokens(text: str) -> str:
-    for token in TOKENS.values():
-        text = text.replace(token, " ")
-    return text
 
 
 def mask_ocr_lines(lines: list[OcrLine]) -> MaskResult:
@@ -173,7 +213,7 @@ def mask_ocr_lines(lines: list[OcrLine]) -> MaskResult:
             s.line = i
         findings.extend(spans)
         new_text = _replace(line.text, spans)
-        if _spans(_strip_tokens(new_text)):
+        if _has_residual(new_text):
             residual = True
         masked.append(OcrLine(text=new_text, page=line.page, bbox=line.bbox))
 

@@ -84,6 +84,61 @@ class TestMaskOcrLines(unittest.TestCase):
         r = mask("Tel: +82-10-0000-1234")
         self.assertEqual(r.lines[0].text, "Tel: [전화번호]")
 
+    # --- PR 리뷰에서 재현된 사례 (회귀 방지) ---
+
+    def test_review_date_between_label_and_name(self):
+        """[치명] 라벨과 이름 사이 날짜 때문에 이름이 통째로 새던 문제."""
+        r = mask(f"성명: 2026-11-17 {FAKE_NAME}")
+        self.assertNotIn(FAKE_NAME, r.masked_text)
+
+    def test_review_value_in_parentheses(self):
+        """[치명] 띄어 쓴 괄호 안의 값이 통째로 새던 문제."""
+        r = mask(f"성명 ({FAKE_NAME})", "생년월일 (1990-01-01)", "주소 (서울 종로구 1번지)")
+        self.assertEqual(
+            r.masked_text, "성명 ([이름])\n생년월일 ([생년월일])\n주소 ([주소])"
+        )
+
+    def test_review_label_value_does_not_swallow_next_label(self):
+        """[중요] 라벨 값이 같은 줄의 다른 라벨(신청일·배우자)을 삼키던 문제."""
+        r = mask(
+            "생년월일 1990-01-01 신청일 2026-11-17",
+            "신청인 생년월일 1990-01-01 배우자 생년월일 1985-05-05",
+            f"성명 {FAKE_NAME} 국적 베트남",
+        )
+        self.assertEqual(
+            r.masked_text,
+            "생년월일 [생년월일] 신청일 2026-11-17\n"
+            "신청인 생년월일 [생년월일] 배우자 생년월일 [생년월일]\n"
+            "성명 [이름] 국적 베트남",
+        )
+
+    def test_review_no_false_residual_across_token(self):
+        """[중요] 토큰 양쪽 숫자가 이어져 깨끗한 문서를 residual로 막던 문제."""
+        r = mask("654321 user@example.com 0998877")
+        self.assertFalse(r.residual)
+
+    def test_review_no_false_residual_from_token_text(self):
+        """토큰 안 글자('[주소]'의 '주소')가 라벨로 다시 잡혀 residual이 되면 안 된다."""
+        r = mask(f"주소: {FAKE_ADDR}", "생년월일 1990.01.01", f"성명 ({FAKE_NAME})")
+        self.assertFalse(r.residual)
+
+    def test_review_particle_ro_is_not_address(self):
+        """[중요] 조사 '로'를 도로명으로 오인하던 문제."""
+        r = mask("연락처로 123 번 주세요")
+        self.assertEqual(r.masked_text, "연락처로 123 번 주세요")
+
+    def test_road_with_beongil_masked(self):
+        r = mask("다라로12번길 34", "가나동 123번지")
+        self.assertEqual(r.masked_text, "[주소]\n[주소]")
+
+    def test_residual_detects_leftover(self):
+        """residual 검사는 토큰은 넘기고 남은 개인정보는 잡는다."""
+        from masking import _has_residual
+
+        self.assertTrue(_has_residual(f"성명: {FAKE_NAME}"))
+        self.assertTrue(_has_residual(f"전화 {FAKE_PHONE}"))
+        self.assertFalse(_has_residual("성명: [이름] 생년월일 [생년월일]"))
+
     @unittest.expectedFailure
     def test_known_limit_name_in_sentence(self):
         """[한계] 라벨 없이 문장 속에 있는 이름은 규칙으로 못 찾는다. data-flow.md 4절 참고."""
