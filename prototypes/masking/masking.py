@@ -68,7 +68,7 @@ _STOP_LABELS = re.compile(
 )
 # 생년월일 라벨 뒤에서 값으로 볼 날짜 모양. 없으면 라벨 뒤 값 전체를 가린다 (안전한 쪽).
 _DATE_VALUE = re.compile(
-    r"\d{2,4}\s*[-./년]\s*\d{1,2}\s*[-./월]\s*\d{1,2}\s*일?|(?<!\d)\d{6}(?:\d{2})?(?!\d)"
+    r"\d{2,4}\s*[-./년]\s*\d{1,2}\s*[-./월]\s*\d{1,2}(?:\s*일)?|(?<!\d)\d{6}(?:\d{2})?(?!\d)"
 )
 # 개인정보가 아닌데 숫자 규칙에 걸리기 쉬운 것. 값 모양 규칙이 여기를 가리지 못하게 막는다.
 # 날짜(신청일·기한)는 L1이 칸을 이해하는 데 필요하다. 라벨 값 안에 있으면 라벨 규칙이 이긴다.
@@ -174,10 +174,16 @@ def _has_residual(masked: str) -> bool:
     토큰은 같은 길이의 '\\x00'으로 바꿔 검사한다.
     - 공백으로 바꾸면 토큰 양쪽 숫자가 이어져 주민등록번호로 잘못 보인다
     - 그대로 두면 토큰 안의 글자('[주소]'의 '주소')가 라벨로 다시 잡힌다
+    - 라벨 값이 토큰으로 시작하면 그 라벨은 이미 가려진 것이다. 토큰 뒤 평범한 글자
+      ("생년월일 [생년월일]이고", "주소 [주소] 입니다")를 남은 값으로 보지 않는다.
+      값 모양 규칙(전화번호 등)은 '\\x00'에 걸리지 않으므로 이 예외에 해당하지 않는다.
     """
     neutral = _TOKEN_RE.sub(lambda m: "\x00" * len(m.group()), masked)
     for f in _spans(neutral):
-        if neutral[f.start : f.end].replace("\x00", "").strip(" ()"):
+        body = neutral[f.start : f.end]
+        if body.startswith("\x00"):
+            continue
+        if body.replace("\x00", "").strip(" ()"):
             return True
     return False
 

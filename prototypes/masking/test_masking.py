@@ -122,6 +122,24 @@ class TestMaskOcrLines(unittest.TestCase):
         r = mask(f"주소: {FAKE_ADDR}", "생년월일 1990.01.01", f"성명 ({FAKE_NAME})")
         self.assertFalse(r.residual)
 
+    def test_review2_no_false_residual_after_label_token(self):
+        """[2차 리뷰] 토큰 뒤 평범한 글자를 남은 라벨 값으로 보던 오탐."""
+        r = mask(
+            "생년월일 1990-01-01이고 신청일 2026-11-17",
+            f"주소 {FAKE_ADDR} 입니다",
+        )
+        self.assertEqual(
+            r.masked_text, "생년월일 [생년월일]이고 신청일 2026-11-17\n주소 [주소] 입니다"
+        )
+        self.assertFalse(r.residual)
+
+    def test_review2_residual_still_catches_leak_after_token(self):
+        """토큰 뒤에 값 모양 개인정보가 남으면 여전히 잡는다."""
+        from masking import _has_residual
+
+        self.assertTrue(_has_residual(f"주소 [주소] 입니다 {FAKE_PHONE}"))
+        self.assertTrue(_has_residual(f"성명: [이름] 주민등록번호 {FAKE_RRN}"))
+
     def test_review_particle_ro_is_not_address(self):
         """[중요] 조사 '로'를 도로명으로 오인하던 문제."""
         r = mask("연락처로 123 번 주세요")

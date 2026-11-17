@@ -29,7 +29,7 @@ OCR 직후 개인정보를 가리는 함수(R1)와 서술형 답변의 개인정
 
 | 단계 | 명령 | 위치 | 상태 |
 | --- | --- | --- | --- |
-| 테스트 | `python3 -m unittest -v` | `prototypes/masking/` | Claude가 실행함 (2026-11-17, Python 3.13.2, PR 리뷰 반영 후): `Ran 25 tests ... OK (expected failures=1)`. 본인 실행: 미실행 |
+| 테스트 | `python3 -m unittest -v` | `prototypes/masking/` | Claude가 실행함 (2026-11-17, Python 3.13.2, 2차 리뷰 반영 후): `Ran 27 tests ... OK (expected failures=1)`. 본인 실행: 미실행 |
 | 린트 | `ruff check .` | `prototypes/masking/` | 미실행 (ruff 미설치) |
 
 `expected failures=1`은 알려진 한계(문장 속 이름) 테스트다. 고치면 이 표시가 `unexpected success`로 바뀐다.
