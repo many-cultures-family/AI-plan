@@ -71,8 +71,8 @@ POST /api/drafts/1/document:recognize
 | 4 | 입력 항목 추론 | `POST /api/drafts/{id}/fields:infer` | `FIELD-CHECK-API.md` | 있음 | 미실행 |
 | 5 | 입력 항목 확정 | `POST /api/drafts/{id}/fields:confirm` | `FIELD-CHECK-API.md` | 있음 | 미실행 |
 | 6 | 사전 정보 입력 (브라우저에만 저장) | 없음 (서버 API 없음) | `no-server-storage-user-input.md` | 화면 없음 | 미실행 |
-| 7 | `prior_info` → `writing` 전이 | `POST /api/drafts/{id}/writing:start` | `VIRTUAL-FORM-API.md` 항목 2 | 없음 | 미실행 |
-| 8 | 가상 작성 (입력값·형식 검사·불일치 계산은 브라우저) | `GET /api/drafts/{id}/form` | `VIRTUAL-FORM-API.md` 항목 1 | 없음 | 미실행 |
+| 7 | `prior_info` → `writing` 전이 | `POST /api/drafts/{id}/writing:start` | `VIRTUAL-FORM-API.md` 항목 2 | 없음 (PR #30 리뷰 중) | 미실행 |
+| 8 | 가상 작성 (입력값·형식 검사·불일치 계산은 브라우저) | `GET /api/drafts/{id}/form`, `GET …/document/pages/{page}` | `VIRTUAL-FORM-API.md` 항목 1·3 | 없음 (PR #30 리뷰 중, 불일치 표시는 아직) | 미실행 |
 | 9 | 단어 설명·쉬운 풀이 | `GET …/document/text`, `GET /api/glossary`, `POST /api/drafts/{id}/explanations` | `WORD-EXPLAIN-API.md` | 없음 | 미실행 |
 | 10 | `writing` → `review` 전이 | `POST /api/drafts/{id}/review:start` | `REVIEW-PRIVACY-API.md` 항목 1 | 없음 | 미실행 |
 | 11 | 개인정보 감지·결정·가리기 (브라우저) | `GET /api/privacy-rules` | `REVIEW-PRIVACY-API.md` 항목 4, `l3-masking.md` | 없음 | 미실행 |
@@ -95,7 +95,7 @@ POST /api/drafts/1/document:recognize
 | 화면 | 업로드가 끝나면 바로 이 API를 부르고, `반려`면 사유 코드로 안내 문구를 만든다. 화면을 닫아 인식을 못 마친 작성 건은 내 작성 목록에서 다시 부를 수 있다 | 항목 1 "화면은 업로드 성공 직후 이어서 부른다" |
 
 ## 아직 없는 항목
-- 원본 파일 보기 API (`DOC-UPLOAD-API.md`·`FIELD-CHECK-API.md` "아직 없는 항목"과 같은 질문)
+- 원본 파일 보기 API (`DOC-UPLOAD-API.md`·`FIELD-CHECK-API.md` "아직 없는 항목"과 같은 질문). 가상 작성 화면에 필요한 쪽 이미지만 `VIRTUAL-FORM-API.md` 항목 3에 `[제안]`으로 두었다
 - `반려` 뒤 다시 올리기 API
 
 ## 팀 확인이 필요한 것
